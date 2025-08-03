@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CustomAlert } from "../../components/CustomAlert";
 import { Colors } from "../../constants/Colors";
 import { GameType, Player } from "../../constants/GameTypes";
 import { useGame } from "../../contexts/GameContext";
@@ -24,6 +25,7 @@ export default function GameSetupScreen() {
   const [playerNames, setPlayerNames] = useState<string[]>(["", ""]);
   const [gameType, setGameType] = useState<GameType>("gin");
   const [showPlayerHistory, setShowPlayerHistory] = useState(false);
+  const [showErrorAlert, setShowErrorAlert] = useState(false);
 
   // Get all unique players from game history
   const historicalPlayers = useMemo(() => {
@@ -55,16 +57,14 @@ export default function GameSetupScreen() {
   };
 
   const startGame = () => {
-    console.log("Start game button pressed!");
-    console.log("Player names before filtering:", playerNames);
+    console.log("Starting game...");
+    console.log("Player names:", playerNames);
 
     const validNames = playerNames.filter((name) => name.trim().length > 0);
-    console.log("Valid names after filtering:", validNames);
-    console.log("Valid names length:", validNames.length);
+    console.log("Valid names:", validNames);
 
     if (validNames.length < 2) {
-      console.log("Not enough players, showing alert");
-      Alert.alert("Error", "Necesitas al menos 2 jugadores para comenzar.");
+      setShowErrorAlert(true);
       return;
     }
 
@@ -331,13 +331,25 @@ export default function GameSetupScreen() {
 
           <TouchableOpacity
             style={[styles.startButton, { backgroundColor: colors.tint }]}
-            onPress={() => {
-              console.log("Button physically pressed");
-              startGame();
-            }}>
+            onPress={startGame}>
             <Ionicons name="play" size={24} color="white" />
             <Text style={styles.startButtonText}>Comenzar Partida</Text>
           </TouchableOpacity>
+
+          <CustomAlert
+            visible={showErrorAlert}
+            title="Error"
+            message="Necesitas al menos 2 jugadores para comenzar."
+            icon="alert-circle-outline"
+            buttons={[
+              {
+                text: "OK",
+                style: "default",
+                onPress: () => setShowErrorAlert(false),
+              },
+            ]}
+            onClose={() => setShowErrorAlert(false)}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>

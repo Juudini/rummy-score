@@ -1,8 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CustomAlert } from "../../components/CustomAlert";
 import { Colors } from "../../constants/Colors";
 import { useGame } from "../../contexts/GameContext";
 import { StorageService } from "../../services/storage";
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const { state, loadGames } = useGame();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
+  const [showNoActiveGameAlert, setShowNoActiveGameAlert] = useState(false);
 
   useEffect(() => {
     loadStoredData();
@@ -44,10 +45,7 @@ export default function HomeScreen() {
     if (activeGame) {
       router.push(`/game/${activeGame.id}` as any);
     } else {
-      Alert.alert(
-        "No hay partidas activas",
-        "Inicia una nueva partida para continuar."
-      );
+      setShowNoActiveGameAlert(true);
     }
   };
 
@@ -110,6 +108,21 @@ export default function HomeScreen() {
           Partidas activas: {state.games.filter((g) => g.isActive).length}
         </Text>
       </View>
+
+      <CustomAlert
+        visible={showNoActiveGameAlert}
+        title="No hay partidas activas"
+        message="Inicia una nueva partida para continuar."
+        icon="information-circle-outline"
+        buttons={[
+          {
+            text: "OK",
+            style: "default",
+            onPress: () => setShowNoActiveGameAlert(false),
+          },
+        ]}
+        onClose={() => setShowNoActiveGameAlert(false)}
+      />
     </SafeAreaView>
   );
 }

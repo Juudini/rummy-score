@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CustomAlert } from "../../components/CustomAlert";
 import { Colors } from "../../constants/Colors";
 import { useGame } from "../../contexts/GameContext";
 import { ScoringUtils } from "../../utils/scoring";
@@ -28,6 +29,8 @@ export default function GameScreen() {
   const [scoreInput, setScoreInput] = useState<number>(0);
   const [scoreModalVisible, setScoreModalVisible] = useState(false);
   const [customScore, setCustomScore] = useState("");
+  const [showNextRoundAlert, setShowNextRoundAlert] = useState(false);
+  const [showFinishGameAlert, setShowFinishGameAlert] = useState(false);
 
   // Find the current game by ID
   const currentGame =
@@ -107,43 +110,29 @@ export default function GameScreen() {
   };
 
   const handleNextRound = () => {
-    Alert.alert(
-      "Nueva Ronda",
-      "¿Estás seguro de que quieres iniciar una nueva ronda?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Continuar", onPress: nextRound },
-      ]
-    );
+    setShowNextRoundAlert(true);
   };
 
-  const handleFinishGame = async () => {
-    Alert.alert(
-      "Finalizar Partida",
-      "¿Estás seguro de que quieres finalizar la partida?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Finalizar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await finishGame();
-              // Give time for the context to save data
-              setTimeout(() => {
-                router.replace("/");
-              }, 500);
-            } catch (error) {
-              console.error("Error finishing game:", error);
-              Alert.alert(
-                "Error",
-                "No se pudo finalizar la partida correctamente."
-              );
-            }
-          },
-        },
-      ]
-    );
+  const handleFinishGame = () => {
+    setShowFinishGameAlert(true);
+  };
+
+  const confirmNextRound = () => {
+    nextRound();
+    setShowNextRoundAlert(false);
+  };
+
+  const confirmFinishGame = async () => {
+    try {
+      await finishGame();
+      setShowFinishGameAlert(false);
+      setTimeout(() => {
+        router.replace("/");
+      }, 500);
+    } catch (error) {
+      console.error("Error finishing game:", error);
+      Alert.alert("Error", "No se pudo finalizar la partida correctamente.");
+    }
   };
 
   const openCamera = () => {
@@ -170,7 +159,7 @@ export default function GameScreen() {
           styles.header,
           { backgroundColor: colors.card, borderColor: colors.border },
         ]}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={[styles.gameType, { color: colors.text }]}>
             {currentGame.gameType === "gin"
               ? "Gin Rummy"
@@ -178,12 +167,23 @@ export default function GameScreen() {
               ? "Rummy 500"
               : "Rummy 1500"}
           </Text>
-          <Text style={[styles.roundText, { color: colors.text }]}>
-            Ronda {currentGame.currentRound}
-          </Text>
+          <View style={styles.roundContainer}>
+            <Ionicons name="reload" size={14} color={colors.tint} />
+            <Text style={[styles.roundText, { color: colors.tint }]}>
+              Ronda {currentGame.currentRound}
+            </Text>
+          </View>
         </View>
+
         {leadingPlayer && (
-          <View style={styles.leaderInfo}>
+          <View
+            style={[
+              styles.leaderInfo,
+              {
+                backgroundColor: colors.warning + "15",
+                borderColor: colors.warning,
+              },
+            ]}>
             <Ionicons name="trophy" size={16} color={colors.warning} />
             <Text style={[styles.leaderText, { color: colors.text }]}>
               {leadingPlayer.name}
@@ -192,14 +192,55 @@ export default function GameScreen() {
         )}
       </View>
 
+      {/* Game Stats Bar */}
+      <View
+        style={[
+          styles.statsBar,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statLabel, { color: colors.text }]}>
+            Jugadores
+          </Text>
+          <Text style={[styles.statValue, { color: colors.tint }]}>
+            {currentGame.players.length}
+          </Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statLabel, { color: colors.text }]}>
+            Puntos objetivo
+          </Text>
+          <Text style={[styles.statValue, { color: colors.tint }]}>
+            {currentGame.gameType === "gin"
+              ? "100"
+              : currentGame.gameType === "rummy500"
+              ? "500"
+              : "1500"}
+          </Text>
+        </View>
+      </View>
+
       {/* Players List */}
       <ScrollView
         style={styles.playersContainer}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.playersContent}>
         {currentGame.players
           .sort((a, b) => b.totalScore - a.totalScore)
           .map((player, index) => {
             const isLeader = player.id === leadingPlayer?.id;
+            const progressPercentage = Math.min(
+              (player.totalScore /
+                (currentGame.gameType === "gin"
+                  ? 100
+                  : currentGame.gameType === "rummy500"
+                  ? 500
+                  : 1500)) *
+                100,
+              100
+            );
+
             return (
               <View
                 key={player.id}
@@ -211,19 +252,39 @@ export default function GameScreen() {
                     borderWidth: isLeader ? 2 : 1,
                   },
                 ]}>
-                <View style={styles.playerInfo}>
+                {/* Player Header */}
+                <View style={styles.playerHeader}>
                   <View style={styles.playerNameContainer}>
-                    {index === 0 && (
-                      <Ionicons
-                        name="trophy"
-                        size={20}
-                        color={colors.warning}
-                      />
-                    )}
+                    <View
+                      style={[
+                        styles.positionBadge,
+                        {
+                          backgroundColor:
+                            index === 0 ? colors.warning : colors.border,
+                        },
+                      ]}>
+                      <Text
+                        style={[
+                          styles.positionText,
+                          { color: index === 0 ? "white" : colors.text },
+                        ]}>
+                        {index + 1}
+                      </Text>
+                    </View>
                     <Text style={[styles.playerName, { color: colors.text }]}>
                       {player.name}
                     </Text>
+                    {index === 0 && (
+                      <View
+                        style={[
+                          styles.crownBadge,
+                          { backgroundColor: colors.warning },
+                        ]}>
+                        <Ionicons name="trophy" size={12} color="white" />
+                      </View>
+                    )}
                   </View>
+
                   <Text
                     style={[
                       styles.playerScore,
@@ -234,14 +295,36 @@ export default function GameScreen() {
                         ),
                       },
                     ]}>
-                    {ScoringUtils.formatScore(player.totalScore)}
+                    {player.totalScore}
                   </Text>
                 </View>
 
+                {/* Progress Bar */}
+                <View
+                  style={[
+                    styles.progressContainer,
+                    { backgroundColor: colors.border },
+                  ]}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      {
+                        width: `${progressPercentage}%`,
+                        backgroundColor: ScoringUtils.getScoreColor(
+                          player.totalScore,
+                          currentGame.gameType
+                        ),
+                      },
+                    ]}
+                  />
+                </View>
+
+                {/* Action Buttons */}
                 <View style={styles.playerActions}>
                   <TouchableOpacity
                     style={[
                       styles.scoreButton,
+                      styles.negativeButton,
                       { backgroundColor: colors.error },
                     ]}
                     onPress={() => handleQuickScore(player.id, -5)}>
@@ -251,6 +334,7 @@ export default function GameScreen() {
                   <TouchableOpacity
                     style={[
                       styles.scoreButton,
+                      styles.negativeButton,
                       { backgroundColor: colors.error },
                     ]}
                     onPress={() => handleQuickScore(player.id, -10)}>
@@ -263,12 +347,13 @@ export default function GameScreen() {
                       { backgroundColor: colors.secondary },
                     ]}
                     onPress={() => handleCustomScore(player.id)}>
-                    <Ionicons name="create" size={16} color="white" />
+                    <Ionicons name="create-outline" size={18} color="white" />
                   </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[
                       styles.scoreButton,
+                      styles.positiveButton,
                       { backgroundColor: colors.success },
                     ]}
                     onPress={() => handleQuickScore(player.id, 10)}>
@@ -278,6 +363,7 @@ export default function GameScreen() {
                   <TouchableOpacity
                     style={[
                       styles.scoreButton,
+                      styles.positiveButton,
                       { backgroundColor: colors.success },
                     ]}
                     onPress={() => handleQuickScore(player.id, 25)}>
@@ -290,36 +376,44 @@ export default function GameScreen() {
       </ScrollView>
 
       {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.secondary }]}
-          onPress={openCamera}>
-          <Ionicons name="camera" size={20} color="white" />
-          <Text style={styles.actionButtonText}>Escanear</Text>
-        </TouchableOpacity>
+      <SafeAreaView>
+        <View
+          style={[
+            styles.actionButtons,
+            { backgroundColor: colors.card, borderTopColor: colors.border },
+          ]}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: colors.secondary }]}
+            onPress={openCamera}>
+            <Ionicons name="camera-outline" size={22} color="white" />
+            <Text style={styles.actionButtonText}>Escanear</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.tint }]}
-          onPress={handleNextRound}>
-          <Ionicons name="refresh" size={20} color="white" />
-          <Text style={styles.actionButtonText}>Nueva Ronda</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: colors.tint }]}
+            onPress={handleNextRound}>
+            <Ionicons name="refresh-outline" size={22} color="white" />
+            <Text style={styles.actionButtonText}>Nueva Ronda</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: colors.warning }]}
-          onPress={handleFinishGame}>
-          <Ionicons name="stop" size={20} color="white" />
-          <Text style={styles.actionButtonText}>Finalizar</Text>
-        </TouchableOpacity>
-      </View>
-
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: colors.warning }]}
+            onPress={handleFinishGame}>
+            <Ionicons name="stop-outline" size={22} color="white" />
+            <Text style={styles.actionButtonText}>Finalizar</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
       {/* Winner Alert */}
       {isGameOver && winner && (
         <View style={[styles.winnerAlert, { backgroundColor: colors.success }]}>
-          <Ionicons name="trophy" size={24} color="white" />
-          <Text style={styles.winnerText}>
-            ¡{winner.name} ha ganado con {winner.totalScore} puntos!
-          </Text>
+          <Ionicons name="trophy" size={28} color="white" />
+          <View>
+            <Text style={styles.winnerTitle}>¡Partida Terminada!</Text>
+            <Text style={styles.winnerText}>
+              {winner.name} ganó con {winner.totalScore} puntos
+            </Text>
+          </View>
         </View>
       )}
 
@@ -370,6 +464,47 @@ export default function GameScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Custom Alerts */}
+      <CustomAlert
+        visible={showNextRoundAlert}
+        title="Nueva Ronda"
+        message="¿Estás seguro de que quieres iniciar una nueva ronda?"
+        icon="refresh-outline"
+        buttons={[
+          {
+            text: "Cancelar",
+            style: "cancel",
+            onPress: () => setShowNextRoundAlert(false),
+          },
+          {
+            text: "Continuar",
+            style: "default",
+            onPress: confirmNextRound,
+          },
+        ]}
+        onClose={() => setShowNextRoundAlert(false)}
+      />
+
+      <CustomAlert
+        visible={showFinishGameAlert}
+        title="Finalizar Partida"
+        message="¿Estás seguro de que quieres finalizar la partida?"
+        icon="stop-outline"
+        buttons={[
+          {
+            text: "Cancelar",
+            style: "cancel",
+            onPress: () => setShowFinishGameAlert(false),
+          },
+          {
+            text: "Finalizar",
+            style: "destructive",
+            onPress: confirmFinishGame,
+          },
+        ]}
+        onClose={() => setShowFinishGameAlert(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -378,47 +513,93 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  errorText: {
-    fontSize: 18,
-    textAlign: "center",
-    marginTop: 50,
-  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+  },
+  headerLeft: {
+    flex: 1,
   },
   gameType: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  roundContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   roundText: {
     fontSize: 14,
-    opacity: 0.7,
-    marginTop: 2,
+    fontWeight: "500",
   },
   leaderInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   leaderText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  statsBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statLabel: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginBottom: 2,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  statDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: "#e0e0e0",
+    marginHorizontal: 20,
   },
   playersContainer: {
     flex: 1,
+  },
+  playersContent: {
     padding: 16,
+    paddingBottom: 100,
   },
   playerCard: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    borderRadius: 16,
     borderWidth: 1,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
   },
-  playerInfo: {
+  playerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -427,53 +608,112 @@ const styles = StyleSheet.create({
   playerNameContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+  },
+  positionBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  positionText: {
+    fontSize: 14,
+    fontWeight: "bold",
   },
   playerName: {
     fontSize: 18,
     fontWeight: "600",
   },
+  crownBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   playerScore: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
+  },
+  progressContainer: {
+    height: 6,
+    borderRadius: 3,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+    borderRadius: 3,
   },
   playerActions: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
     justifyContent: "center",
   },
   scoreButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    minWidth: 50,
     alignItems: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+  },
+  negativeButton: {
+    transform: [{ scale: 0.95 }],
+  },
+  positiveButton: {
+    transform: [{ scale: 1.05 }],
   },
   customButton: {
-    width: 44,
-    height: 32,
-    borderRadius: 8,
+    width: 50,
+    height: 40,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
   },
   scoreButtonText: {
     color: "white",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
   actionButtons: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
-    padding: 16,
-    gap: 8,
+    padding: 20,
+    gap: 12,
+    borderTopWidth: 1,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
   },
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     gap: 8,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3.84,
   },
   actionButtonText: {
     color: "white",
@@ -481,16 +721,31 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   winnerAlert: {
+    position: "absolute",
+    top: "50%",
+    left: 20,
+    right: 20,
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    gap: 12,
+    padding: 20,
+    borderRadius: 16,
+    gap: 16,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6.27,
+  },
+  winnerTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 4,
   },
   winnerText: {
     color: "white",
     fontSize: 16,
-    fontWeight: "600",
-    flex: 1,
+    fontWeight: "500",
   },
   modalOverlay: {
     flex: 1,
