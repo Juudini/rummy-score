@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -17,12 +17,24 @@ import { GameType, Player } from "../../constants/GameTypes";
 import { useGame } from "../../contexts/GameContext";
 
 export default function GameSetupScreen() {
-  const { createGame } = useGame();
+  const { createGame, state } = useGame();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
   const [playerNames, setPlayerNames] = useState<string[]>(["", ""]);
   const [gameType, setGameType] = useState<GameType>("gin");
+  const [showPlayerHistory, setShowPlayerHistory] = useState(false);
+
+  // Get all unique players from game history
+  const historicalPlayers = useMemo(() => {
+    const playerSet = new Set<string>();
+    state.games.forEach((game) => {
+      game.players.forEach((player) => {
+        playerSet.add(player.name);
+      });
+    });
+    return Array.from(playerSet).sort();
+  }, [state.games]);
 
   const addPlayer = () => {
     if (playerNames.length < 6) {
@@ -81,6 +93,22 @@ export default function GameSetupScreen() {
       console.error("Error in createGame:", error);
       Alert.alert("Error", `No se pudo crear la partida: ${error}`);
     }
+  };
+
+  const addPlayerFromHistory = (playerName: string) => {
+    // Find first empty slot or add new slot
+    const emptyIndex = playerNames.findIndex((name) => name.trim() === "");
+    if (emptyIndex !== -1) {
+      const updated = [...playerNames];
+      updated[emptyIndex] = playerName;
+      setPlayerNames(updated);
+    } else if (playerNames.length < 6) {
+      setPlayerNames([...playerNames, playerName]);
+    }
+  };
+
+  const isPlayerSelected = (playerName: string) => {
+    return playerNames.some((name) => name.trim() === playerName);
   };
 
   return (
@@ -184,9 +212,75 @@ export default function GameSetupScreen() {
 
           {/* Players Section */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Jugadores ({playerNames.length})
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Jugadores ({playerNames.length})
+              </Text>
+
+              {historicalPlayers.length > 0 && (
+                <TouchableOpacity
+                  style={[
+                    styles.historyButton,
+                    { backgroundColor: colors.secondary },
+                  ]}
+                  onPress={() => setShowPlayerHistory(!showPlayerHistory)}>
+                  <Ionicons name="people" size={16} color="white" />
+                  <Text style={styles.historyButtonText}>Historial</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Player History Selection */}
+            {showPlayerHistory && historicalPlayers.length > 0 && (
+              <View
+                style={[
+                  styles.historyContainer,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                  },
+                ]}>
+                <Text style={[styles.historyTitle, { color: colors.text }]}>
+                  Seleccionar jugadores del historial:
+                </Text>
+                <View style={styles.historyPlayersGrid}>
+                  {historicalPlayers.map((playerName) => (
+                    <TouchableOpacity
+                      key={playerName}
+                      style={[
+                        styles.historyPlayerChip,
+                        {
+                          backgroundColor: isPlayerSelected(playerName)
+                            ? colors.tint
+                            : colors.card,
+                          borderColor: colors.border,
+                          opacity: isPlayerSelected(playerName) ? 0.7 : 1,
+                        },
+                      ]}
+                      onPress={() =>
+                        !isPlayerSelected(playerName) &&
+                        addPlayerFromHistory(playerName)
+                      }
+                      disabled={isPlayerSelected(playerName)}>
+                      <Text
+                        style={[
+                          styles.historyPlayerText,
+                          {
+                            color: isPlayerSelected(playerName)
+                              ? "white"
+                              : colors.text,
+                          },
+                        ]}>
+                        {playerName}
+                      </Text>
+                      {isPlayerSelected(playerName) && (
+                        <Ionicons name="checkmark" size={14} color="white" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {playerNames.map((name, index) => (
               <View key={index} style={styles.playerRow}>
@@ -342,5 +436,53 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 18,
     fontWeight: "600",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  historyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  historyButtonText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  historyContainer: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 12,
+  },
+  historyPlayersGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  historyPlayerChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 4,
+  },
+  historyPlayerText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
