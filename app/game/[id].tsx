@@ -196,29 +196,44 @@ export default function GameScreen() {
       <View
         style={[
           styles.statsBar,
-          { backgroundColor: colors.card, borderColor: colors.border },
+          {
+            backgroundColor:
+              isGameOver && winner ? colors.success : colors.card,
+            borderColor: colors.border,
+          },
         ]}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.text }]}>
-            Jugadores
-          </Text>
-          <Text style={[styles.statValue, { color: colors.tint }]}>
-            {currentGame.players.length}
-          </Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.text }]}>
-            Puntos objetivo
-          </Text>
-          <Text style={[styles.statValue, { color: colors.tint }]}>
-            {currentGame.gameType === "gin"
-              ? "100"
-              : currentGame.gameType === "rummy500"
-              ? "500"
-              : "1500"}
-          </Text>
-        </View>
+        {isGameOver && winner ? (
+          <View style={styles.winnerStatsBar}>
+            <Ionicons name="trophy" size={20} color="white" />
+            <Text style={styles.winnerStatsText}>
+              ¡{winner.name} ha ganado con {winner.totalScore} puntos!
+            </Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, { color: colors.text }]}>
+                Jugadores
+              </Text>
+              <Text style={[styles.statValue, { color: colors.tint }]}>
+                {currentGame.players.length}
+              </Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, { color: colors.text }]}>
+                Puntos objetivo
+              </Text>
+              <Text style={[styles.statValue, { color: colors.tint }]}>
+                {currentGame.gameType === "gin"
+                  ? "100"
+                  : currentGame.gameType === "rummy500"
+                  ? "500"
+                  : "1500"}
+              </Text>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Players List */}
@@ -231,13 +246,16 @@ export default function GameScreen() {
           .map((player, index) => {
             const isLeader = player.id === leadingPlayer?.id;
             const progressPercentage = Math.min(
-              (player.totalScore /
-                (currentGame.gameType === "gin"
-                  ? 100
-                  : currentGame.gameType === "rummy500"
-                  ? 500
-                  : 1500)) *
-                100,
+              Math.max(
+                (player.totalScore /
+                  (currentGame.gameType === "gin"
+                    ? 100
+                    : currentGame.gameType === "rummy500"
+                    ? 500
+                    : 1500)) *
+                  100,
+                0
+              ), // Ensure minimum 0% for negative scores
               100
             );
 
@@ -309,7 +327,10 @@ export default function GameScreen() {
                     style={[
                       styles.progressBar,
                       {
-                        width: `${progressPercentage}%`,
+                        width:
+                          player.totalScore < 0
+                            ? "0%"
+                            : `${progressPercentage}%`,
                         backgroundColor: ScoringUtils.getScoreColor(
                           player.totalScore,
                           currentGame.gameType
@@ -382,40 +403,53 @@ export default function GameScreen() {
             styles.actionButtons,
             { backgroundColor: colors.card, borderTopColor: colors.border },
           ]}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.secondary }]}
-            onPress={openCamera}>
-            <Ionicons name="camera-outline" size={22} color="white" />
-            <Text style={styles.actionButtonText}>Escanear</Text>
-          </TouchableOpacity>
+          {isGameOver && winner ? (
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                styles.finishGameButton,
+                { backgroundColor: colors.success },
+              ]}
+              onPress={handleFinishGame}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={22}
+                color="white"
+              />
+              <Text style={styles.actionButtonText}>Terminar Partida</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  { backgroundColor: colors.secondary },
+                ]}
+                onPress={openCamera}>
+                <Ionicons name="camera-outline" size={22} color="white" />
+                <Text style={styles.actionButtonText}>Escanear</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.tint }]}
-            onPress={handleNextRound}>
-            <Ionicons name="refresh-outline" size={22} color="white" />
-            <Text style={styles.actionButtonText}>Nueva Ronda</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: colors.tint }]}
+                onPress={handleNextRound}>
+                <Ionicons name="refresh-outline" size={22} color="white" />
+                <Text style={styles.actionButtonText}>Nueva Ronda</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.warning }]}
-            onPress={handleFinishGame}>
-            <Ionicons name="stop-outline" size={22} color="white" />
-            <Text style={styles.actionButtonText}>Finalizar</Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  { backgroundColor: colors.warning },
+                ]}
+                onPress={handleFinishGame}>
+                <Ionicons name="stop-outline" size={22} color="white" />
+                <Text style={styles.actionButtonText}>Finalizar</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </SafeAreaView>
-      {/* Winner Alert */}
-      {isGameOver && winner && (
-        <View style={[styles.winnerAlert, { backgroundColor: colors.success }]}>
-          <Ionicons name="trophy" size={28} color="white" />
-          <View>
-            <Text style={styles.winnerTitle}>¡Partida Terminada!</Text>
-            <Text style={styles.winnerText}>
-              {winner.name} ganó con {winner.totalScore} puntos
-            </Text>
-          </View>
-        </View>
-      )}
 
       {/* Custom Score Modal */}
       <Modal
@@ -720,32 +754,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  winnerAlert: {
-    position: "absolute",
-    top: "50%",
-    left: 20,
-    right: 20,
+  finishGameButton: {
+    flex: 1,
+  },
+  winnerStatsBar: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 20,
-    borderRadius: 16,
-    gap: 16,
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6.27,
+    justifyContent: "center",
+    gap: 12,
+    flex: 1,
   },
-  winnerTitle: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  winnerText: {
+  winnerStatsText: {
     color: "white",
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "bold",
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,

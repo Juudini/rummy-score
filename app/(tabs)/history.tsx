@@ -1,11 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,18 +25,45 @@ export default function HistoryScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
 
-  // Get unique dates from all games
-  const availableDates = useMemo(() => {
+  // Get unique dates from all games with better organization
+  const gameCalendarData = useMemo(() => {
     const dateMap = new Map();
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    // Group games by month and year
     state.games.forEach((game) => {
-      const dateKey = new Date(game.createdAt).toDateString();
-      if (!dateMap.has(dateKey)) {
-        dateMap.set(dateKey, new Date(game.createdAt));
+      const gameDate = new Date(game.createdAt);
+      const monthKey = `${gameDate.getFullYear()}-${gameDate.getMonth()}`;
+
+      if (!dateMap.has(monthKey)) {
+        dateMap.set(monthKey, {
+          year: gameDate.getFullYear(),
+          month: gameDate.getMonth(),
+          dates: [],
+        });
+      }
+
+      const monthData = dateMap.get(monthKey);
+      const existingDate = monthData.dates.find(
+        (d: any) => d.date.toDateString() === gameDate.toDateString()
+      );
+
+      if (existingDate) {
+        existingDate.gameCount++;
+      } else {
+        monthData.dates.push({
+          date: gameDate,
+          gameCount: 1,
+        });
       }
     });
-    return Array.from(dateMap.values()).sort(
-      (a, b) => b.getTime() - a.getTime()
-    );
+
+    return Array.from(dateMap.values()).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
   }, [state.games]);
 
   // Filter games based on selected criteria
@@ -92,11 +117,11 @@ export default function HistoryScreen() {
     setSelectedPlayers([]);
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === "ios");
-    if (selectedDate) {
-      setSelectedDate(selectedDate);
-    }
+  const onDateSelect = (date: Date) => {
+    setSelectedDate(
+      selectedDate?.toDateString() === date.toDateString() ? null : date
+    );
+    setShowDatePicker(false);
   };
 
   const clearDateFilter = () => {
@@ -326,12 +351,20 @@ export default function HistoryScreen() {
                   styles.datePickerButton,
                   {
                     backgroundColor: colors.background,
-                    borderColor: colors.border,
+                    borderColor: selectedDate ? colors.tint : colors.border,
                   },
                 ]}
                 onPress={() => setShowDatePicker(true)}>
-                <Ionicons name="calendar" size={20} color={colors.tint} />
-                <Text style={[styles.datePickerText, { color: colors.text }]}>
+                <Ionicons
+                  name="calendar"
+                  size={20}
+                  color={selectedDate ? colors.tint : colors.text}
+                />
+                <Text
+                  style={[
+                    styles.datePickerText,
+                    { color: selectedDate ? colors.tint : colors.text },
+                  ]}>
                   {selectedDate
                     ? selectedDate.toLocaleDateString("es-ES", {
                         day: "2-digit",
@@ -345,7 +378,7 @@ export default function HistoryScreen() {
               {selectedDate && (
                 <TouchableOpacity
                   style={[
-                    styles.clearDateButton,
+                    styles.clearButton,
                     { backgroundColor: colors.error },
                   ]}
                   onPress={clearDateFilter}>
@@ -354,16 +387,136 @@ export default function HistoryScreen() {
               )}
             </View>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={selectedDate || new Date()}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={onDateChange}
-                maximumDate={new Date()}
-                minimumDate={new Date(2020, 0, 1)}
-              />
-            )}
+            {/* Custom Calendar Modal */}
+            <Modal
+              visible={showDatePicker}
+              animationType="slide"
+              presentationStyle="pageSheet"
+              onRequestClose={() => setShowDatePicker(false)}>
+              <View
+                style={[
+                  styles.calendarModal,
+                  { backgroundColor: colors.background },
+                ]}>
+                <View
+                  style={[
+                    styles.calendarHeader,
+                    { borderBottomColor: colors.border },
+                  ]}>
+                  <Text style={[styles.calendarTitle, { color: colors.text }]}>
+                    Seleccionar Fecha
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Ionicons name="close" size={24} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.calendarContent}>
+                  {gameCalendarData.map((monthData, monthIndex) => (
+                    <View
+                      key={`${monthData.year}-${monthData.month}`}
+                      style={styles.monthSection}>
+                      <Text
+                        style={[styles.monthHeader, { color: colors.text }]}>
+                        {new Date(
+                          monthData.year,
+                          monthData.month
+                        ).toLocaleDateString("es-ES", {
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </Text>
+
+                      <View style={styles.datesGrid}>
+                        {monthData.dates.map(
+                          (dateInfo: any, dateIndex: number) => (
+                            <TouchableOpacity
+                              key={dateIndex}
+                              style={[
+                                styles.dateCard,
+                                {
+                                  backgroundColor:
+                                    selectedDate?.toDateString() ===
+                                    dateInfo.date.toDateString()
+                                      ? colors.tint
+                                      : colors.card,
+                                  borderColor: colors.border,
+                                },
+                              ]}
+                              onPress={() => onDateSelect(dateInfo.date)}>
+                              <Text
+                                style={[
+                                  styles.dateNumber,
+                                  {
+                                    color:
+                                      selectedDate?.toDateString() ===
+                                      dateInfo.date.toDateString()
+                                        ? "white"
+                                        : colors.text,
+                                  },
+                                ]}>
+                                {dateInfo.date.getDate()}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.dateMonth,
+                                  {
+                                    color:
+                                      selectedDate?.toDateString() ===
+                                      dateInfo.date.toDateString()
+                                        ? "white"
+                                        : colors.text,
+                                  },
+                                ]}>
+                                {dateInfo.date.toLocaleDateString("es-ES", {
+                                  month: "short",
+                                })}
+                              </Text>
+                              <View
+                                style={[
+                                  styles.gameCountBadge,
+                                  {
+                                    backgroundColor:
+                                      selectedDate?.toDateString() ===
+                                      dateInfo.date.toDateString()
+                                        ? "rgba(255,255,255,0.3)"
+                                        : colors.tint,
+                                  },
+                                ]}>
+                                <Text
+                                  style={[
+                                    styles.gameCountText,
+                                    { color: "white" },
+                                  ]}>
+                                  {dateInfo.gameCount}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          )
+                        )}
+                      </View>
+                    </View>
+                  ))}
+
+                  {gameCalendarData.length === 0 && (
+                    <View style={styles.emptyCalendar}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={64}
+                        color={colors.border}
+                      />
+                      <Text
+                        style={[
+                          styles.emptyCalendarText,
+                          { color: colors.text },
+                        ]}>
+                        No hay fechas con partidas
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
+            </Modal>
           </View>
 
           {/* Player Filter */}
@@ -777,18 +930,92 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 12,
     borderRadius: 8,
-    borderWidth: 1,
+    borderWidth: 2,
     gap: 8,
   },
   datePickerText: {
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  calendarModal: {
     flex: 1,
   },
-  clearDateButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  calendarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+  },
+  calendarTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  calendarContent: {
+    flex: 1,
+    padding: 16,
+  },
+  monthSection: {
+    marginBottom: 24,
+  },
+  monthHeader: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 12,
+    textTransform: "capitalize",
+  },
+  datesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  dateCard: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  dateNumber: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 2,
+  },
+  dateMonth: {
+    fontSize: 12,
+    opacity: 0.8,
+    textTransform: "capitalize",
+  },
+  gameCountBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gameCountText: {
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  emptyCalendar: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyCalendarText: {
+    fontSize: 16,
+    marginTop: 16,
+    opacity: 0.7,
   },
 });

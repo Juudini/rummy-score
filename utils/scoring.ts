@@ -58,11 +58,14 @@ export const ScoringUtils = {
   },
 
   getScoreColor(score: number, gameType: GameType): string {
+    // Handle negative scores
+    if (score < 0) return "#f44336"; // Red for negative scores
+
     const maxScore = GAME_RULES[gameType].maxScore;
     const percentage = score / maxScore;
 
-    if (percentage < 0.5) return "#4CAF50";
-    if (percentage < 0.8) return "#ff9800";
-    return "#f44336";
+    if (percentage < 0.5) return "#4CAF50"; // Green
+    if (percentage < 0.8) return "#ff9800"; // Orange
+    return "#f44336"; // Red
   },
 };
