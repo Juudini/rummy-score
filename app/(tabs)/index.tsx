@@ -1,64 +1,123 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import React, { useEffect } from "react";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { Colors } from "../../constants/Colors";
+import { useGame } from "../../contexts/GameContext";
+import { StorageService } from "../../services/storage";
 
 export default function HomeScreen() {
+  const { state, loadGames } = useGame();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
+  useEffect(() => {
+    loadStoredData();
+  }, []);
+
+  const loadStoredData = async () => {
+    try {
+      console.log("Loading stored games...");
+      const games = await StorageService.loadGames();
+      console.log("Loaded games:", games.length);
+      loadGames(games);
+    } catch (error) {
+      console.error("Error loading data:", error);
+    }
+  };
+
+  const handleNewGame = () => {
+    router.push("/game/setup");
+  };
+
+  const handleContinueGame = () => {
+    const activeGame = state.games.find((game) => game.isActive);
+    if (activeGame) {
+      router.push(`/game/${activeGame.id}` as any);
+    } else {
+      Alert.alert(
+        "No hay partidas activas",
+        "Inicia una nueva partida para continuar."
+      );
+    }
+  };
+
+  const hasActiveGame = state.games.some((game) => game.isActive);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["bottom"]}>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: colors.text }]}>RummyScore</Text>
+        <Text style={[styles.subtitle, { color: colors.text }]}>
+          Contador de puntos para Rummy
+        </Text>
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            styles.primaryButton,
+            { backgroundColor: colors.tint },
+          ]}
+          onPress={handleNewGame}>
+          <Ionicons name="add-circle-outline" size={24} color="white" />
+          <Text style={styles.buttonText}>Nueva Partida</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.button,
+            styles.secondaryButton,
+            {
+              backgroundColor: hasActiveGame ? colors.secondary : colors.border,
+              borderColor: colors.border,
+            },
+          ]}
+          onPress={handleContinueGame}
+          disabled={!hasActiveGame}>
+          <Ionicons
+            name="play-circle-outline"
+            size={24}
+            color={hasActiveGame ? "white" : colors.text}
+          />
+          <Text
+            style={[
+              styles.buttonText,
+              { color: hasActiveGame ? "white" : colors.text },
+            ]}>
+            Continuar Partida
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.statsContainer}>
+        <Text style={[styles.statsText, { color: colors.text }]}>
+          Partidas jugadas: {state.games.length}
+        </Text>
+        <Text style={[styles.statsText, { color: colors.text }]}>
+          Partidas activas: {state.games.filter((g) => g.isActive).length}
+        </Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   stepContainer: {
@@ -70,6 +129,59 @@ const styles = StyleSheet.create({
     width: 290,
     bottom: 0,
     left: 0,
-    position: 'absolute',
+    position: "absolute",
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+    justifyContent: "center",
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 60,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    opacity: 0.7,
+  },
+  buttonContainer: {
+    gap: 16,
+    marginBottom: 40,
+  },
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  primaryButton: {
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  secondaryButton: {
+    borderWidth: 2,
+  },
+  buttonText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "white",
+  },
+  statsContainer: {
+    alignItems: "center",
+    gap: 8,
+  },
+  statsText: {
+    fontSize: 14,
+    opacity: 0.7,
   },
 });
